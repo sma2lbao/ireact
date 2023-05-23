@@ -1,0 +1,20 @@
+{
+  "name": "react-dom",
+  "version": "1.0.0",
+  "description": "",
+  "module": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@ireact/shared": "workspace:^1.0.0",
+    "@ireact/reconciler": "workspace:^1.0.0",
+    "react-dom-bindings": "workspace:^1.0.0"
+  },
+  "peerDependencies": {
+    "@ireact/reconciler": "workspace:^1.0.0"
+  }
+}

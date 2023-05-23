@@ -1,0 +1,15 @@
+{
+  "name": "@ireact/reconciler",
+  "version": "1.0.0",
+  "description": "React协调器",
+  "module": "index.ts",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@ireact/shared": "workspace:^1.0.0"
+  },
+  "devDependencies": {
+    "react-dom-bindings": "workspace:^1.0.0"
+  }
+}

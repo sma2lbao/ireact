@@ -1,0 +1,14 @@
+{
+  "name": "react",
+  "version": "1.0.0",
+  "description": "",
+  "module": "index.ts",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@ireact/shared": "workspace:^1.0.0"
+  },
+  "devDependencies": {
+    "@ireact/reconciler": "workspace:^1.0.0"
+  }
+}
