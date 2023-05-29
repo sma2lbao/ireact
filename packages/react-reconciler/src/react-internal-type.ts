@@ -4,6 +4,7 @@ import { Lane, LaneMap, Lanes } from "./react-fiber-lane";
 import { WorkTag } from "./react-work-tag";
 import { RootTag } from "./react-root-tags";
 import { ConcurrentUpdate } from "./react-fiber-concurrent-updates";
+import { ReactContext } from "shared/react-types";
 
 export type Fiber = {
   tag: WorkTag;
@@ -104,6 +105,7 @@ export interface Dispatcher {
   useState<S>(initialState: S | (() => S)): [S, Dispatch<BasicStateAction<S>>];
   useEffect(create: () => void | (() => void), deps: void | null | any[]): void;
   useRef<T>(initialValue: T): { current: T };
+  useContext<T>(context: ReactContext<T>): T;
 }
 
 export type MemoCache = {

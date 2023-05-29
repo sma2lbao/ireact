@@ -1,3 +1,4 @@
+import { ReactContext } from "shared/react-types";
 import {
   enqueueConcurrentHookUpdate,
   enqueueConcurrentHookUpdateAndEagerlyBailout,
@@ -155,12 +156,14 @@ const HooksDispatcherOnMount: Dispatcher = {
   useState: mountState,
   useEffect: mountEffect,
   useRef: mountRef,
+  useContext: readContext,
 };
 
 const HooksDispatcherOnUpdate: Dispatcher = {
   useState: updateState,
   useEffect: updateEffect,
   useRef: updateRef,
+  useContext: readContext,
 };
 
 function basicStateReducer<S>(state: S, action: BasicStateAction<S>): S {
@@ -610,4 +613,16 @@ function enqueueRenderPhaseUpdate<S, A>(
 
 function createEffectInstance(): EffectInstance {
   return { destroy: undefined };
+}
+
+export function readContext<T>(context: ReactContext<T>): T {
+  return readContextForConsumer(currentlyRenderingFiber, context);
+}
+
+export function readContextForConsumer<T>(
+  consumer: Fiber | null,
+  context: ReactContext<T>
+) {
+  const value = context._currentValue;
+  return value;
 }

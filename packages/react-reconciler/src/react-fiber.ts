@@ -4,6 +4,7 @@ import { Lanes, NoLanes } from "./react-fiber-lane";
 import { Fiber } from "./react-internal-type";
 import { ConcurrentMode, NoMode, TypeOfMode } from "./react-type-of-mode";
 import {
+  ContextProvider,
   Fragment,
   FunctionComponent,
   HostComponent,
@@ -13,6 +14,7 @@ import {
 } from "./react-work-tag";
 import { ConcurrentRoot, RootTag } from "./react-root-tags";
 import { ReactFragment } from "@ireact/shared/react-types";
+import { REACT_PROVIDER_TYPE } from "@ireact/shared/react-symbols";
 
 export class FiberNode {
   // Instance
@@ -172,6 +174,12 @@ export function createFiberFromTypeAndProps(
   let fiberTag: WorkTag = FunctionComponent;
   if (typeof type === "string") {
     fiberTag = HostComponent;
+  } else if (
+    typeof type === "object" &&
+    type !== null &&
+    type.$$typeof === REACT_PROVIDER_TYPE
+  ) {
+    fiberTag = ContextProvider;
   } else if (typeof type !== "function") {
     if (__DEV__) {
       console.warn("未定义的type类型", type);

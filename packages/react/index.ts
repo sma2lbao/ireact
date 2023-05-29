@@ -1,18 +1,23 @@
-import { jsx } from "./src/jsx";
-import { ReactSharedInternals } from "./src/react-shared-internals";
-import { useState, useEffect, useRef } from "./src/react-hooks";
-
-const version = "1.0.0";
-
-const createElement = jsx;
+import {
+  version,
+  createElement,
+  __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,
+  createContext,
+  useState,
+  useEffect,
+  useRef,
+  useContext,
+} from "./src/react";
 
 export default {
   version,
   createElement,
-  __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: ReactSharedInternals,
+  __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,
+  createContext,
   useState,
   useEffect,
   useRef,
+  useContext,
 };
 
-export { useState, useEffect, useRef } from "./src/react-hooks";
+export * from "./src/react";

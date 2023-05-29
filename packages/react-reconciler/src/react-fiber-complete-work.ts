@@ -8,12 +8,15 @@ import {
 import { Lanes, NoLanes, mergeLanes } from "./react-fiber-lane";
 import { Fiber } from "./react-internal-type";
 import {
+  ContextProvider,
   Fragment,
   FunctionComponent,
   HostComponent,
   HostRoot,
   HostText,
 } from "./react-work-tag";
+import { ReactContext } from "shared/react-types";
+import { popProvider } from "./react-fiber-context";
 
 function markUpdate(workInProgress: Fiber) {
   workInProgress.flags |= Update;
@@ -94,6 +97,12 @@ export function completeWork(
     case HostRoot:
     case FunctionComponent:
     case Fragment:
+      bubbleProperties(workInProgress);
+      return null;
+    case ContextProvider:
+      // 出栈过程
+      const context: ReactContext<any> = workInProgress.type._context;
+      popProvider(context, workInProgress);
       bubbleProperties(workInProgress);
       return null;
   }

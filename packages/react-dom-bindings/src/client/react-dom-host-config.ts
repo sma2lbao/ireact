@@ -24,6 +24,8 @@ export const supportsHydration = true;
 
 export const supportsMutation = true;
 
+export const isPrimaryRenderer = true;
+
 export const cancelTimeout: any =
   typeof clearTimeout === "function" ? clearTimeout : undefined;
 

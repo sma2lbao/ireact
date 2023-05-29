@@ -1,3 +1,4 @@
+import { ReactContext, ReactProviderType } from "shared/react-types";
 import {
   cloneChildFibers,
   mountChildFibers,
@@ -18,12 +19,14 @@ import {
 import { markSkippedUpdateLanes } from "./react-fiber-work-loop";
 import { Fiber, FiberRoot } from "./react-internal-type";
 import {
+  ContextProvider,
   Fragment,
   FunctionComponent,
   HostComponent,
   HostRoot,
   HostText,
 } from "./react-work-tag";
+import { pushProvider } from "./react-fiber-context";
 
 let didReceiveUpdate: boolean = false;
 
@@ -89,6 +92,8 @@ export function beginWork(
       );
     case Fragment:
       return updateFragment(current, workInProgress, renderLanes);
+    case ContextProvider:
+      return updateContextProvider(current, workInProgress, renderLanes);
   }
 
   throw new Error(
@@ -195,6 +200,48 @@ function updateFragment(
 ) {
   const nextChildren = workInProgress.pendingProps;
   reconcileChildren(current, workInProgress, nextChildren, renderLanes);
+  return workInProgress.child;
+}
+
+function updateContextProvider(
+  current: Fiber | null,
+  workInProgress: Fiber,
+  renderLanes: Lanes
+) {
+  const providerType: ReactProviderType<any> = workInProgress.type;
+  const context: ReactContext<any> = providerType._context;
+
+  const newProps = workInProgress.pendingProps;
+  const oldProps = workInProgress.memoizedProps;
+
+  const newValue = newProps.value;
+
+  // context 入栈过程
+  pushProvider(workInProgress, context, newValue);
+
+  // TODO  路径优化
+  // 从 Provider向下DFS，寻找消费了当前变化的context的consumer
+  // 如果找到consumer，从consumer向上遍历到Provider
+  // 标记沿途组件存在更新
+  // if (oldProps !== null) {
+  //   const oldValue = oldProps.value;
+  //   if (Object.is(oldValue, newValue)) {
+  //     // 没有变化
+  //     if (oldProps.children === newProps.children) {
+  //       return bailoutOnAlreadyFinishedWork(
+  //         current,
+  //         workInProgress,
+  //         renderLanes
+  //       );
+  //     }
+  //   } else {
+  //     // context有变化，找到匹配的consumer 并且调度他们更新
+  //     propagateContextChange(workInProgress, context, renderLanes);
+  //   }
+  // }
+
+  const newChildren = newProps.children;
+  reconcileChildren(current, workInProgress, newChildren, renderLanes);
   return workInProgress.child;
 }
 
