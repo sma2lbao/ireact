@@ -178,7 +178,7 @@ export function getContinuationForRoot(
   // 所以虽然它不是一个真正的微任务，但它也可能是。
   scheduleTaskForRootDuringMicrotask(root, now());
   if (root.callbackNode === originalCallbackNode) {
-    // 为该根调度的任务节点与当前执行的任务节点相同。需要返回一个延续。
+    // 继续调度该任务： 同一个work被打断，需要返回这个work
     return performConcurrentWorkOnRoot.bind(null, root);
   }
   return null;
@@ -297,6 +297,7 @@ function scheduleTaskForRootDuringMicrotask(
     root.cancelPendingCommit !== null
   ) {
     // Fast path: There's nothing to work on.
+    //
     if (existingCallbackNode !== null) {
       Scheduler_cancelCallback(existingCallbackNode);
     }
@@ -321,6 +322,7 @@ function scheduleTaskForRootDuringMicrotask(
     const existingCallbackPriority = root.callbackPriority;
     const newCallbackPriority = getHighestPriorityLane(nextLanes);
     if (newCallbackPriority === existingCallbackPriority) {
+      // 优先级一致
       return newCallbackPriority;
     } else {
       existingCallbackNode && Scheduler_cancelCallback(existingCallbackNode);

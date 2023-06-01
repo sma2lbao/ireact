@@ -3,7 +3,6 @@ import {
   getCurrentEventPriority,
   noTimeout,
   resetAfterCommit,
-  scheduleMicrotask,
 } from "react-fiber-host-config";
 import { createWorkInProgress } from "./react-fiber";
 import { beginWork } from "./react-fiber-begin-work";
@@ -255,6 +254,7 @@ export function performSyncWorkOnRoot(root: FiberRoot) {
   flushPassiveEffects();
 
   let lanes = getNextLanes(root, NoLanes);
+  // 批处理条件
   if (!includesSyncLane(lanes)) {
     // There's no remaining sync work left.
     ensureRootIsScheduled(root);
@@ -264,6 +264,7 @@ export function performSyncWorkOnRoot(root: FiberRoot) {
   let exitStatus = renderRootSync(root, lanes);
 
   if (exitStatus === RootDidNotComplete) {
+    console.warn("同步更新没有完成");
     //被中断的树。这种情况发生在需要退出当前渲染而不生成一致树或提交。
     markRootSuspended(root, lanes);
     ensureRootIsScheduled(root);
@@ -279,7 +280,7 @@ export function performSyncWorkOnRoot(root: FiberRoot) {
     workInProgressTransitions
   );
 
-  //退出之前，确保有一个回调为下一个调度等待的水平。
+  //退出之前，确保有一个回调为下一个调度更新提供入口。
   ensureRootIsScheduled(root);
 
   return null;
@@ -287,15 +288,18 @@ export function performSyncWorkOnRoot(root: FiberRoot) {
 
 /**
  * 经过Schedulerd的并发任务的入口
+ * didTimeout：是否过期
  */
 export function performConcurrentWorkOnRoot(
   root: FiberRoot,
   didTimeout: boolean
 ): RenderTaskFn | null {
   const originalCallbackNode = root.callbackNode;
+  // 保证useEffect执行; didFlushPassiveEffects effect回调是否执行
   const didFlushPassiveEffects = flushPassiveEffects();
 
   if (didFlushPassiveEffects) {
+    // 中断：flush中存在更新优先级比 original 的更新优先级更高
     if (root.callbackNode !== originalCallbackNode) {
       return null;
     } else {
@@ -322,6 +326,8 @@ export function performConcurrentWorkOnRoot(
     : renderRootSync(root, lanes);
 
   if (exitStatus !== RootInProgress) {
+    // 没有中断
+
     if (exitStatus === RootErrored) {
       console.warn("TODO");
     }
@@ -424,6 +430,7 @@ function renderRootSync(root: FiberRoot, lanes: Lanes) {
 
   outer: do {
     try {
+      // 中断任务
       if (
         workInProgressSuspendedReason !== NotSuspended &&
         workInProgress !== null
@@ -522,10 +529,12 @@ function renderRootConcurrent(root: FiberRoot, lanes: Lanes) {
   resetContextDependencies();
   executionContext = prevExecutionContext;
 
-  // 检查 wip tree 是否完成
+  // 检查 wip tree 是否完成 ：1. 中断执行 2. render执行完成
   if (workInProgress !== null) {
+    // render未结束
     return RootInProgress;
   } else {
+    // render结束
     workInProgressRoot = null;
     workInProgressRootRenderLanes = NoLanes;
 
