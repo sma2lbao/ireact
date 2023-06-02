@@ -1,4 +1,7 @@
-import { ReactContext } from "shared/react-types";
+import {
+  ReactContext,
+  StartTransitionOptions,
+} from "@ireact/shared/react-types";
 import ReactCurrentDispatcher from "./react-current-dispatcher";
 import {
   BasicStateAction,
@@ -39,4 +42,12 @@ export function useRef<T>(initialValue: T): { current: T } {
 export function useContext<T>(Context: ReactContext<T>): T {
   const dispatcher = resolveDispatcher();
   return dispatcher.useContext(Context);
+}
+
+export function useTransition(): [
+  boolean,
+  (callback: () => void, options?: StartTransitionOptions) => void
+] {
+  const dispatcher = resolveDispatcher();
+  return dispatcher.useTransition();
 }

@@ -7,6 +7,7 @@ import {
   useEffect,
   useRef,
   useContext,
+  useTransition,
 } from "./src/react";
 
 export default {
@@ -18,6 +19,7 @@ export default {
   useEffect,
   useRef,
   useContext,
+  useTransition,
 };
 
 export * from "./src/react";

@@ -1,11 +1,13 @@
-import { ReactContext } from "shared/react-types";
+import {
+  ReactContext,
+  StartTransitionOptions,
+} from "@ireact/shared/react-types";
 import {
   enqueueConcurrentHookUpdate,
   enqueueConcurrentHookUpdateAndEagerlyBailout,
 } from "./react-fiber-concurrent-updates";
 import { Flags, Passive as PassiveEffect } from "./react-fiber-flags";
 import { Lane, Lanes, NoLane, NoLanes } from "./react-fiber-lane";
-import { processUpdateQueue } from "./react-fiber-update-queue";
 import {
   requestUpdateLane,
   scheduleUpdateOnFiber,
@@ -23,6 +25,7 @@ import {
   MemoCache,
 } from "./react-internal-type";
 import ReactSharedInternals from "@ireact/shared/react-shared-internals";
+import { getCurrentUpdatePriority } from "./react-event-priorities";
 
 export type Update<S, A> = {
   lane: Lane;
@@ -97,7 +100,8 @@ let didScheduleRenderPhaseUpdate: boolean = false;
 
 let didScheduleRenderPhaseUpdateDuringThisPass: boolean = false;
 
-const { ReactCurrentDispatcher } = ReactSharedInternals;
+const { ReactCurrentDispatcher, ReactCurrentBatchConfig } =
+  ReactSharedInternals;
 
 export function resetHooksOnUnwind(workInProgress: Fiber): void {
   console.warn("TODO: ", "resetHooksOnUnwind");
@@ -157,6 +161,7 @@ const HooksDispatcherOnMount: Dispatcher = {
   useEffect: mountEffect,
   useRef: mountRef,
   useContext: readContext,
+  useTransition: mountTransition,
 };
 
 const HooksDispatcherOnUpdate: Dispatcher = {
@@ -164,6 +169,7 @@ const HooksDispatcherOnUpdate: Dispatcher = {
   useEffect: updateEffect,
   useRef: updateRef,
   useContext: readContext,
+  useTransition: updateTransition,
 };
 
 function basicStateReducer<S>(state: S, action: BasicStateAction<S>): S {
@@ -173,28 +179,15 @@ function basicStateReducer<S>(state: S, action: BasicStateAction<S>): S {
 function mountState<S>(
   initialState: (() => S) | S
 ): [S, Dispatch<BasicStateAction<S>>] {
-  const hook = mountWorkInProgressHook();
+  const hook = mountStateImpl(initialState);
+  const queue = hook.queue!;
 
-  if (initialState instanceof Function) {
-    initialState = initialState();
-  }
-
-  hook.memoizedState = hook.baseState = initialState;
-  const queue: UpdateQueue<S, BasicStateAction<S>> = {
-    pending: null,
-    lanes: NoLanes,
-    dispatch: null,
-    lastRenderedReducer: basicStateReducer,
-    lastRenderedState: initialState,
-  };
-  hook.queue = queue;
-
-  // @ts-ignore
-  const dispatch = (queue.dispatch = dispatchSetState.bind(
+  const dispatch: Dispatch<BasicStateAction<S>> = dispatchSetState.bind(
     null,
     currentlyRenderingFiber as Fiber,
-    queue as any
-  ));
+    queue
+  );
+  queue.dispatch = dispatch;
 
   return [hook.memoizedState, dispatch];
 }
@@ -203,6 +196,23 @@ function updateState<S>(
   initialState: (() => S) | S
 ): [S, Dispatch<BasicStateAction<S>>] {
   return updateReducer(basicStateReducer, initialState);
+}
+
+function mountStateImpl<S>(initialState: (() => S) | S): Hook {
+  const hook = mountWorkInProgressHook();
+  if (initialState instanceof Function) {
+    initialState = initialState();
+  }
+  hook.memoizedState = hook.baseState = initialState;
+  const queue: UpdateQueue<S, BasicStateAction<S>> = {
+    pending: null,
+    lanes: NoLanes,
+    dispatch: null,
+    lastRenderedReducer: basicStateReducer,
+    lastRenderedState: initialState as any,
+  };
+  hook.queue = queue;
+  return hook;
 }
 
 function mountEffect(
@@ -279,6 +289,62 @@ function updateEffectImpl(
     inst,
     nextDeps
   );
+}
+
+function mountTransition(): [
+  boolean,
+  (callback: () => void, options?: StartTransitionOptions) => void
+] {
+  const [isPending, setPending] = mountState(false);
+  const hook = mountWorkInProgressHook();
+  const start = startTransition.bind(null, setPending);
+  hook.memoizedState = start;
+  return [isPending, start];
+}
+
+function updateTransition(): [
+  boolean,
+  (callback: () => void, options?: StartTransitionOptions) => void
+] {
+  const [booleanOrThenable] = updateState(false);
+  const hook = updateWorkInProgressHook();
+  const start = hook.memoizedState;
+  // TODO: 优化路径
+  // const isPending =
+  // typeof booleanOrThenable === "boolean"
+  //   ? booleanOrThenable
+  //   : // This will suspend until the async action scope has finished.
+  //     useThenable(booleanOrThenable);
+
+  return [booleanOrThenable, start];
+}
+
+// TODO
+// function startTransition<S>(
+//   fiber: Fiber,
+//   queue: UpdateQueue<S | Thenable<S>, BasicStateAction<S | Thenable<S>>>,
+//   pendingState: S,
+//   finishedState: S,
+//   callback: () => any,
+//   options?: StartTransitionOptions
+// ) {
+//   const prevTransition = ReactCurr
+// }
+
+//
+function startTransition<S>(
+  setPending: Dispatch<boolean>,
+  callback: () => void
+) {
+  const previousPriority = getCurrentUpdatePriority();
+  setPending(true);
+  const prevTransition = ReactCurrentBatchConfig.transition;
+  ReactCurrentBatchConfig.transition = {};
+
+  callback();
+  setPending(false);
+
+  ReactCurrentBatchConfig.transition = prevTransition;
 }
 
 /**

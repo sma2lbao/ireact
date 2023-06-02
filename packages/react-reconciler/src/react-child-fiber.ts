@@ -208,26 +208,216 @@ function createChildReconciler(shouldTrackSideEffects: boolean) {
     }
   }
 
+  function createChild(
+    returnFiber: Fiber,
+    newChild: any,
+    lanes: Lanes
+  ): Fiber | null {
+    if (
+      (typeof newChild === "string" && newChild !== "") ||
+      typeof newChild === "number"
+    ) {
+      // Text nodes don't have keys. If the previous node is implicitly keyed
+      // we can continue to replace it without aborting even if it is not a text
+      // node.
+      const created = createFiberFromText(
+        "" + newChild,
+        returnFiber.mode,
+        lanes
+      );
+      created.return = returnFiber;
+      return created;
+    }
+
+    if (typeof newChild === "object" && newChild !== null) {
+      switch (newChild.$$typeof) {
+        case REACT_ELEMENT_TYPE: {
+          const created = createFiberFromElement(
+            newChild,
+            returnFiber.mode,
+            lanes
+          );
+          created.ref = coerceRef(returnFiber, null as any, newChild);
+          created.return = returnFiber;
+          return created;
+        }
+      }
+
+      if (Array.isArray(newChild)) {
+        const created = createFiberFromFragment(
+          newChild as any,
+          returnFiber.mode,
+          lanes,
+          null
+        );
+        created.return = returnFiber;
+        return created;
+      }
+
+      // Usable node types
+      //
+      // Unwrap the inner value and recursively call this function again.
+      // if (typeof newChild.then === 'function') {
+      //   const thenable: Thenable<any> = (newChild: any);
+      //   return createChild(returnFiber, unwrapThenable(thenable), lanes);
+      // }
+
+      throw new Error("Objects are not valid as a React child");
+    }
+
+    return null;
+  }
+
+  function updateSlot(
+    returnFiber: Fiber,
+    oldFiber: Fiber | null,
+    newChild: any,
+    lanes: Lanes
+  ): Fiber | null {
+    // Update the fiber if the keys match, otherwise return null.
+    const key = oldFiber !== null ? oldFiber.key : null;
+
+    if (
+      (typeof newChild === "string" && newChild !== "") ||
+      typeof newChild === "number"
+    ) {
+      // Text nodes don't have keys. If the previous node is implicitly keyed
+      // we can continue to replace it without aborting even if it is not a text
+      // node.
+      if (key !== null) {
+        return null;
+      }
+      return updateTextNode(returnFiber, oldFiber, "" + newChild, lanes);
+    }
+
+    if (typeof newChild === "object" && newChild !== null) {
+      switch (newChild.$$typeof) {
+        case REACT_ELEMENT_TYPE: {
+          if (newChild.key === key) {
+            return updateElement(returnFiber, oldFiber, newChild, lanes);
+          } else {
+            return null;
+          }
+        }
+      }
+
+      if (Array.isArray(newChild)) {
+        if (key !== null) {
+          return null;
+        }
+
+        return updateFragment(returnFiber, oldFiber, newChild, lanes, null);
+      }
+
+      // Usable node types
+      //
+      // Unwrap the inner value and recursively call this function again.
+      // if (typeof newChild.then === 'function') {
+      //   const thenable: Thenable<any> = (newChild: any);
+      //   return updateSlot(
+      //     returnFiber,
+      //     oldFiber,
+      //     unwrapThenable(thenable),
+      //     lanes,
+      //   );
+      // }
+
+      throw new Error("Objects are not valid as a React child");
+    }
+
+    return null;
+  }
+
   function reconcileChildrenArray(
     returnFiber: Fiber,
     currentFirstChild: Fiber | null,
     newChildren: Array<any>,
     lanes: Lanes
   ): Fiber | null {
+    debugger;
     // 创建的第一个Fiber
     let resultingFirstChild: Fiber | null = null;
     let previousNewFiber: Fiber | null = null;
-
+    let oldFiber = currentFirstChild;
     // 记录curren中最后一个可复用Fiber的索引
     let lastPlacedIndex = 0;
+    let newIdx = 0;
+    let nextOldFiber = null;
+    for (; oldFiber !== null && newIdx < newChildren.length; newIdx++) {
+      if (oldFiber.index > newIdx) {
+        nextOldFiber = oldFiber;
+        oldFiber = null;
+      } else {
+        nextOldFiber = oldFiber.sibling;
+      }
+      const newFiber = updateSlot(
+        returnFiber,
+        oldFiber,
+        newChildren[newIdx],
+        lanes
+      );
+
+      if (newFiber === null) {
+        if (oldFiber === null) {
+          oldFiber = nextOldFiber;
+        }
+        break;
+      }
+      if (shouldTrackSideEffects) {
+        if (oldFiber && newFiber.alternate === null) {
+          // We matched the slot, but we didn't reuse the existing fiber, so we
+          // need to delete the existing child.
+          deleteChild(returnFiber, oldFiber);
+        }
+      }
+
+      lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
+      if (previousNewFiber === null) {
+        // TODO: Move out of the loop. This only happens for the first run.
+        resultingFirstChild = newFiber;
+      } else {
+        // TODO: Defer siblings if we're not at the right index for this slot.
+        // I.e. if we had null values before, then we want to defer this
+        // for each null value. However, we also don't want to call updateSlot
+        // with the previous one.
+        previousNewFiber.sibling = newFiber;
+      }
+      previousNewFiber = newFiber;
+      oldFiber = nextOldFiber;
+    }
+
+    if (newIdx === newChildren.length) {
+      // We've reached the end of the new children. We can delete the rest.
+      deleteRemainingChildren(returnFiber, oldFiber);
+      return resultingFirstChild;
+    }
+
+    // 如果没有复用的fiber就会将剩余的节点全部插入
+    if (oldFiber === null) {
+      // If we don't have any more existing children we can choose a fast path
+      // since the rest will all be insertions.
+      for (; newIdx < newChildren.length; newIdx++) {
+        const newFiber = createChild(returnFiber, newChildren[newIdx], lanes);
+        if (newFiber === null) {
+          continue;
+        }
+        lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
+        if (previousNewFiber === null) {
+          // TODO: Move out of the loop. This only happens for the first run.
+          resultingFirstChild = newFiber;
+        } else {
+          previousNewFiber.sibling = newFiber;
+        }
+        previousNewFiber = newFiber;
+      }
+
+      return resultingFirstChild;
+    }
 
     // 1. 将current children 保存在map中
-    const existingChildren = mapRemainingChildren(
-      returnFiber,
-      currentFirstChild!
-    );
+    const existingChildren = mapRemainingChildren(returnFiber, oldFiber);
     // 2. 遍历newChildren
-    for (let newIdx = 0; newIdx < newChildren.length; newIdx++) {
+    for (; newIdx < newChildren.length; newIdx++) {
       // 1.寻找可复用
       // 2.标记插入还是移动
       const newFiber = updateFromMap(
@@ -239,6 +429,18 @@ function createChildReconciler(shouldTrackSideEffects: boolean) {
       );
 
       if (newFiber !== null) {
+        if (shouldTrackSideEffects) {
+          if (newFiber.alternate !== null) {
+            // The new fiber is a work in progress, but if there exists a
+            // current, that means that we reused the fiber. We need to delete
+            // it from the child list so that we don't add it to the deletion
+            // list.
+            existingChildren.delete(
+              newFiber.key === null ? newIdx : newFiber.key
+            );
+          }
+        }
+
         // 比较可复用Fiber的current中的相对位置
         lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
 
@@ -280,7 +482,7 @@ function createChildReconciler(shouldTrackSideEffects: boolean) {
             return existing;
           }
         } else {
-          if (child.type === element.type) {
+          if (child.elementType === element.type) {
             deleteRemainingChildren(returnFiber, child.sibling);
             // type相同
             const existing = useFiber(child, element.props);
@@ -376,11 +578,6 @@ function createChildReconciler(shouldTrackSideEffects: boolean) {
               lanes
             )
           );
-        default:
-          if (__DEV__) {
-            console.warn("未实现的 child 类型");
-          }
-          break;
       }
     }
     // TODO 多节点
